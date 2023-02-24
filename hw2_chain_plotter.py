@@ -110,8 +110,71 @@ def get_link_positions(config, W, L, D):
     return (joint_positions, link_vertices)
     # TODO: Implement this function
     raise NotImplementedError
+    
+    
+def get_link_indices_containing(v,config,W ,L, D):
+    joint_positions = [[0, 0]]
+    angle = 0
+    (vert1, vert2, vert3, vert4) = (np.array([11, 1, 1]), np.array([-1,
+                                    1, 1]), np.array([-1, -1, 1]),
+                                    np.array([11, -1, 1]))
+    vert = np.array([vert1, vert2, vert3, vert4])
+    link_vertices = []
+    Gmatrix = None
+    for i in range(1, len(config) + 1):
+        angle = angle + config[i - 1]
+        pos = [joint_positions[i - 1][0] + D * np.cos(angle),
+               joint_positions[i - 1][1] + D * np.sin(angle)]
+        joint_positions.append(pos)
 
+        # print(joint_positions, pos, len(config))
 
+        t_matrix = np.array([[np.cos(angle), -np.sin(angle), 0],
+                            [np.sin(angle), np.cos(angle), 0], [0, 0,
+                            1]])
+        vertices = []
+
+        if i == 1:
+            for j in range(len(vert)):
+                m = vert[j].reshape((3, 1))
+                dot = np.dot(t_matrix, m)
+                vertices.append((dot.reshape((1, 3)).tolist()[0])[:-1])
+            print (vertices)
+            link_vertices.append(vertices)
+            Gmatrix = t_matrix
+        else:
+            t_matrix = np.array([[np.cos(config[i - 1]),
+                                -np.sin(config[i - 1]), 10],
+                                [np.sin(config[i - 1]), np.cos(config[i
+                                - 1]), 0], [0, 0, 1]])
+            Gmatrix = np.dot(Gmatrix, t_matrix)
+
+            for j in range(len(vert)):
+                m = vert[j].reshape((3, 1))
+                dot = np.dot(Gmatrix, m)
+                vertices.append((dot.reshape((1, 3)).tolist()[0])[:-1])
+            print (vertices)
+            link_vertices.append(vertices)
+    links = []
+    print(len(link_vertices))
+    for i in link_vertices:
+        for j in range(4):
+            if j == 3:
+                m = (i[j][1] - i[0][1]) / (i[j][0] - i[0][0])
+            else:
+            	
+            	m = (i[j+1][1] - i[j][1]) / (i[j+1][0] - i[j][0])
+            if v[1] < m * v[0]:
+                links.append(link_vertices.index(i))
+                print(links)
+            else:
+            	if len(links) !=0:
+                	links.pop()
+
+    return links
+	
 if __name__ == "__main__":
     chain = get_chain_msg()
+    get_link_indices_containing((0,0),chain.config, chain.W, chain.L, chain.D)
     plot_chain(chain.config, chain.W, chain.L, chain.D)
+    

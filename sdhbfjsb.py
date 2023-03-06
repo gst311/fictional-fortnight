@@ -1,40 +1,51 @@
-import pclpy
-from pclpy import pcl
-from sensor_msgs.msg import PointCloud2
+#!/usr/bin/env python3
+
+import rospy
 import numpy as np
+from sensor_msgs.msg import PointCloud2, PointField
+import sensor_msgs.point_cloud2 as pc2
+from plyfile import PlyData, PlyElement
 
-# Load PLY file using PCL
-cloud = pcl.PointCloud.PointXYZRGB()
-pcl.io.loadPLYFile("input.ply", cloud)
+def read_ply_file(filename):
+    # Read PLY file using PlyData library
+    plydata = PlyData.read(filename)
+    vertices = np.array(plydata['vertex'].data)
 
-# Extract point cloud data
-points = cloud.xyz
-colors = cloud.rgb
+    # Extract x, y, z coordinates from vertices
+    x = vertices['x']
+    y = vertices['y']
+    z = vertices['z']
 
-# Convert data to PointCloud2 message
-header = pclpy.pcl_helper.get_default_header()
-header.frame_id = "map"
+    # Combine x, y, z coordinates into a single 3D array
+    pointcloud = np.zeros((vertices.shape[0], 3))
+    pointcloud[:, 0] = x
+    pointcloud[:, 1] = y
+    pointcloud[:, 2] = z
 
-# Create PointCloud2 message
-msg = PointCloud2()
-msg.header = header
-msg.height = 1
-msg.width = points.shape[0]
-msg.fields = [
-    pclpy.pcl_helper.create_field('x', 0, PointField.FLOAT32, 1),
-    pclpy.pcl_helper.create_field('y', 4, PointField.FLOAT32, 1),
-    pclpy.pcl_helper.create_field('z', 8, PointField.FLOAT32, 1),
-    pclpy.pcl_helper.create_field('rgb', 16, PointField.UINT32, 1),
-]
-msg.is_bigendian = False
-msg.point_step = 20
-msg.row_step = msg.point_step * msg.width
-msg.is_dense = True
-msg.data = np.hstack((
-    points.astype(np.float32).tostring(),
-    colors.astype(np.uint8).tostring()
-))
+    return pointcloud
 
-# Save PointCloud2 message to file
-with open("output.bag", "wb") as f:
-    f.write(msg.serialize())
+def publish_pointcloud(pointcloud, topic_name):
+    # Initialize ROS node and publisher
+    rospy.init_node('ply_publisher', anonymous=True)
+    pub = rospy.Publisher(topic_name, PointCloud2, queue_size=10)
+
+    # Create PointCloud2 message header
+    header = pc2.Header()
+    header.stamp = rospy.Time.now()
+    header.frame_id = "map"
+
+    # Create PointCloud2 message from point cloud data
+    pointcloud_msg = pc2.create_cloud_xyz32(header, pointcloud)
+
+    # Publish PointCloud2 message on specified topic
+    while not rospy.is_shutdown():
+        pub.publish(pointcloud_msg)
+
+if __name__ == '__main__':
+    # Specify input and output files
+    filename = 'input.ply'
+    topic_name = 'pointcloud'
+
+    # Read PLY file and publish as ROS message
+    pointcloud = read_ply_file(filename)
+    publish_pointcloud(pointcloud, topic_name)
